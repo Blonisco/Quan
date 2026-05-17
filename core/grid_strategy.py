@@ -262,7 +262,7 @@ class GridStrategy:
         """执行卖出"""
         net_btc = db.get_net_btc_position()
         if net_btc <= 0:
-            logger.warning("策略无持仓，跳过卖出")
+            logger.debug("策略无持仓，跳过卖出")
             return False
         amount_btc = self._calc_order_amount(price)
         amount_btc = min(amount_btc, net_btc * 0.99)
@@ -383,14 +383,17 @@ class GridStrategy:
                     self._execute_buy(buy_target)
                 else:
                     logger.debug(f"已有买入挂单 @ {buy_target}，跳过")
-
-        # 7. 检查卖出
-        sell_target = self._find_sell_target(current_price, entry_price)
-        if sell_target is not None:
-            if not risk.is_duplicate_order(sell_target, "sell"):
-                self._execute_sell(sell_target)
             else:
-                logger.debug(f"已有卖出挂单 @ {sell_target}，跳过")
+                logger.debug(f"无买入目标（当前价 {current_price} 高于买区）")
+
+        # 7. 检查卖出（仅在有持仓时）
+        if db.get_net_btc_position() > 0:
+            sell_target = self._find_sell_target(current_price, entry_price)
+            if sell_target is not None:
+                if not risk.is_duplicate_order(sell_target, "sell"):
+                    self._execute_sell(sell_target)
+                else:
+                    logger.debug(f"已有卖出挂单 @ {sell_target}，跳过")
 
         # 8. 状态日志（每小时由 main.py 统一输出，此处仅 debug）
         _ema_f = f"EMA_f={ema_fast:.2f}" if ema_fast else "EMA_f=N/A"
