@@ -47,6 +47,8 @@ class GridStrategy:
         self.grid_lines: list[float] = []
         self.buy_lines: list[float] = []
         self.sell_lines: list[float] = []
+        self._last_grid_mid: float | None = None  # 上次动态网格中点
+        self._grid_step: float = 0.0  # 当前网格步长（用于取消容差）
         self._init_grid_lines()
 
     # ============================================
@@ -80,12 +82,12 @@ class GridStrategy:
 
         low = current_price - half_range
         high = current_price + half_range
+        mid = (low + high) / 2
 
         self.grid_lines = []
         for i in range(GRID_COUNT + 1):
             self.grid_lines.append(round(low + i * grid_step, 2))
 
-        mid = (low + high) / 2
         self.buy_lines = sorted(
             [p for p in self.grid_lines if p < mid], reverse=True
         )
@@ -93,8 +95,11 @@ class GridStrategy:
             [p for p in self.grid_lines if p >= mid]
         )
 
+        self._last_grid_mid = mid
+        self._grid_step = grid_step
+
         logger.info(f"动态网格: {len(self.grid_lines)} 条线, "
-                     f"step={grid_step:.1f}, "
+                     f"step={grid_step:.1f}, mid={mid:.2f}, "
                      f"买入区 {self.buy_lines[0] if self.buy_lines else 'N/A'}~"
                      f"{self.buy_lines[-1] if self.buy_lines else 'N/A'}, "
                      f"卖出区 {self.sell_lines[0] if self.sell_lines else 'N/A'}~"
@@ -189,13 +194,15 @@ class GridStrategy:
             order_side = order["side"]
             should_cancel = False
 
+            cancel_tolerance = max(self._grid_step * 0.5, 5.0)  # 至少 5 USDT
+
             if order_side == "buy":
                 if self.mode == "risk_off":
                     should_cancel = True  # 下跌模式取消所有买单
                 elif current_price > order_price * 1.03:
                     should_cancel = True
                 elif self.mode == "grid" and not any(
-                    abs(order_price - bl) < 0.01 for bl in self.buy_lines
+                    abs(order_price - bl) <= cancel_tolerance for bl in self.buy_lines
                 ):
                     should_cancel = True
 
@@ -203,7 +210,7 @@ class GridStrategy:
                 if current_price < order_price * 0.97:
                     should_cancel = True
                 elif self.mode == "grid" and not any(
-                    abs(order_price - sl) < 0.01 for sl in self.sell_lines
+                    abs(order_price - sl) <= cancel_tolerance for sl in self.sell_lines
                 ):
                     should_cancel = True
 
@@ -342,8 +349,8 @@ class GridStrategy:
             ema_fast = ema_slow = None
 
         # 3. 判断市场模式
+        prev_mode = self.mode
         if ema_fast is not None and ema_slow is not None:
-            prev_mode = self.mode
             self.mode = self._determine_mode(ema_fast, ema_slow, current_price)
             if self.mode != prev_mode:
                 logger.warning(f"模式切换: {prev_mode} → {self.mode} "
@@ -351,11 +358,18 @@ class GridStrategy:
         else:
             self.mode = "grid"
 
-        # 4. 动态网格计算
+        # 4. 动态网格计算（仅在首次、模式切换或价格偏离超过1个步长时重算）
         if self.mode == "grid" and atr_val is not None:
-            self._calc_dynamic_grid(current_price, atr_val)
+            grid_step = max(atr_val * GRID_STEP_ATR_MULT, 10.0)
+            if (self._last_grid_mid is None
+                    or self.mode != prev_mode
+                    or abs(current_price - self._last_grid_mid) > grid_step):
+                self._calc_dynamic_grid(current_price, atr_val)
         elif atr_val is None:
-            self._init_grid_lines()
+            # 无 ATR 时也避免每轮重复初始化
+            if self._last_grid_mid is None or self.mode != prev_mode:
+                self._init_grid_lines()
+                self._last_grid_mid = None
 
         # 5. 同步成交 + 清理过期订单
         self.sync_orders()
