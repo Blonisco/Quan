@@ -7,10 +7,7 @@ import math
 import time
 import logging
 from config.settings import (
-    SYMBOL,
     ORDER_AMOUNT_USDT,
-    MAX_OPEN_ORDERS,
-    MAX_POSITION_BTC,
     GRID_LOW_PRICE,
     GRID_HIGH_PRICE,
     GRID_COUNT,
@@ -21,7 +18,6 @@ from config.settings import (
     GRID_STEP_ATR_MULT,
     TREND_ENTRY_ATR_MULT,
     TAKE_PROFIT_LEVELS,
-    GRID_TAKE_PROFIT_PCT,
     PRIMARY_TIMEFRAME,
     OHLCV_LOOKBACK,
 )

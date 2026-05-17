@@ -264,17 +264,27 @@ class RiskManager:
         if not ok:
             return False, f"余额不足 → {reason}"
 
-        # 6. 回撤
+        # 6. 现金储备
+        ok, reason = self.check_cash_reserve()
+        if not ok:
+            return False, f"现金储备 → {reason}"
+
+        # 7. 回撤
         ok, reason = self.check_drawdown()
         if not ok:
             return False, f"回撤熔断 → {reason}"
 
-        # 7. 挂单数量
+        # 8. 连续同向
+        ok, reason = self.check_consecutive_same_dir()
+        if not ok:
+            return False, f"连续同向 → {reason}"
+
+        # 9. 挂单数量
         ok, reason = self.check_open_orders_count()
         if not ok:
             return False, f"挂单限制 → {reason}"
 
-        # 8. 重复下单
+        # 10. 重复下单
         if self.is_duplicate_order(price, "buy"):
             return False, f"重复挂单 → 价格 {price} 已有买入挂单"
 

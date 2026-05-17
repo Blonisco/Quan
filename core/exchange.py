@@ -249,26 +249,11 @@ def get_min_notional() -> float:
 @_retry
 def fetch_ohlcv(timeframe: str = "15m", limit: int = 100) -> list[list]:
     """
-    获取 K线数据
+    获取 K线数据，用于 EMA/ATR 计算
 
     Args:
         timeframe: K线周期 (1m, 5m, 15m, 1h, 4h, 1d)
         limit: 获取条数
-
-    Returns:
-        list[list]: [[timestamp, open, high, low, close, volume], ...]
-    """
-    return exchange.fetch_ohlcv(SYMBOL, timeframe=timeframe, limit=limit)
-
-
-@_retry
-def fetch_ohlcv(timeframe: str = "15m", limit: int = 100):
-    """
-    获取 K 线数据，用于 EMA/ATR 计算
-
-    Args:
-        timeframe: K线周期，如 "15m"、"1h"
-        limit: 获取的 K 线条数
 
     Returns:
         list[list]: [[timestamp, open, high, low, close, volume], ...]

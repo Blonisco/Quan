@@ -244,22 +244,5 @@ class Notifier:
         )
         self._send(text)
 
-    def daily_report(self, date: str, total_trades: int, pnl: float,
-                     btc_balance: float, usdt_balance: float) -> None:
-        """每日收益通知"""
-        pnl_emoji = "📈" if pnl >= 0 else "📉"
-        text = (
-            f"{pnl_emoji} <b>收益报告 ({date})</b>\n"
-            f"━━━━━━━━━━━━━━━\n"
-            f"成交笔数: {total_trades}\n"
-            f"盈亏: {pnl:.4f} USDT\n"
-            f"BTC 持仓: {btc_balance:.6f} BTC\n"
-            f"USDT 余额: {usdt_balance:.2f} USDT\n"
-            f"报告时间: {self._now()}\n"
-            f"━━━━━━━━━━━━━━━"
-        )
-        self._send(text)
-
-
 # 全局单例，供各模块引用
 notifier = Notifier()
