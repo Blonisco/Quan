@@ -384,7 +384,7 @@ class GridStrategy:
                 else:
                     logger.debug(f"已有买入挂单 @ {buy_target}，跳过")
             else:
-                logger.debug(f"无买入目标（当前价 {current_price} 高于买区）")
+                logger.info(f"无买入目标（当前价 {current_price} 高于买区）")
 
         # 7. 检查卖出（仅在有持仓时）
         if db.get_net_btc_position() > 0:
