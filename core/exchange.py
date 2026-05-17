@@ -80,6 +80,12 @@ def _create_exchange() -> ccxt.binance:
     if IS_TESTNET:
         exchange.set_sandbox_mode(True)
 
+    # 同步服务器时间（修复 -1021 Timestamp ahead 错误）
+    try:
+        exchange.load_time_difference()
+    except Exception:
+        pass  # 非致命，重试逻辑会兜底
+
     return exchange
 
 
@@ -261,3 +267,58 @@ def fetch_ohlcv(timeframe: str = "15m", limit: int = 100) -> list[list]:
         list[list]: [[timestamp, open, high, low, close, volume], ...]
     """
     return exchange.fetch_ohlcv(SYMBOL, timeframe=timeframe, limit=limit)
+
+
+# ============================================
+# 精度格式化（符合 Binance PRICE_FILTER / LOT_SIZE）
+# ============================================
+
+_market_info = None
+
+
+def _load_market():
+    """懒加载市场信息"""
+    global _market_info
+    if _market_info is None:
+        _market_info = exchange.market(SYMBOL)
+    return _market_info
+
+
+def format_price(price: float) -> float:
+    """
+    将价格格式化为 Binance 允许的 tick size
+
+    Args:
+        price: 原始价格
+
+    Returns:
+        float: 格式化后的价格
+    """
+    market = _load_market()
+    return float(exchange.price_to_precision(SYMBOL, price))
+
+
+def format_amount(amount: float) -> float:
+    """
+    将数量格式化为 Binance 允许的 step size
+
+    Args:
+        amount: 原始数量
+
+    Returns:
+        float: 格式化后的数量
+    """
+    market = _load_market()
+    return float(exchange.amount_to_precision(SYMBOL, amount))
+
+
+def get_price_precision() -> int:
+    """获取价格精度位数"""
+    market = _load_market()
+    return market["precision"]["price"]
+
+
+def get_amount_precision() -> int:
+    """获取数量精度位数"""
+    market = _load_market()
+    return market["precision"]["amount"]

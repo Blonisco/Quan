@@ -126,17 +126,23 @@ class RiskManager:
     # 现金储备检查（strategy.md: 最低现金 60%）
     # ============================================
 
-    def check_cash_reserve(self) -> tuple[bool, str]:
-        """检查是否保留足够现金"""
+    def check_cash_reserve(self, required_usdt: float = 0) -> tuple[bool, str]:
+        """检查是否保留足够现金。
+        仅当 USDT 在总资产中占比很低且余额不足以买下一单时拦截。
+        required_usdt: 本次需要花费的 USDT"""
         try:
-            capital = self._get_total_capital()
             usdt = fetch_balance("USDT")
-            if capital > 0 and usdt / capital < MIN_CASH_RESERVE_PCT:
+            # 只要 USDT 够买这一单，就放行
+            if required_usdt > 0 and usdt >= required_usdt:
+                return True, f"余额充足: {usdt:.2f} USDT"
+            capital = self._get_total_capital()
+            ratio = usdt / capital if capital > 0 else 0
+            if ratio < MIN_CASH_RESERVE_PCT and usdt < required_usdt:
                 return False, (
-                    f"现金储备不足: {usdt/capital*100:.1f}% < "
-                    f"{MIN_CASH_RESERVE_PCT*100:.0f}%"
+                    f"现金储备不足: {ratio*100:.1f}% < "
+                    f"{MIN_CASH_RESERVE_PCT*100:.0f}%, 且余额不足下单"
                 )
-            return True, f"现金储备: {usdt/capital*100:.1f}%"
+            return True, f"现金储备: {ratio*100:.1f}%"
         except Exception as e:
             return False, f"查询储备失败: {e}"
 
@@ -264,8 +270,13 @@ class RiskManager:
         if not ok:
             return False, f"敞口限制 → {reason}"
 
-        # 5. 余额
+        # 6. 现金储备
         required_usdt = price * amount_btc * 1.001
+        ok, reason = self.check_cash_reserve(required_usdt)
+        if not ok:
+            return False, f"现金储备 → {reason}"
+
+        # 7. 余额
         ok, reason = self.check_quote_balance(required_usdt)
         if not ok:
             return False, f"余额不足 → {reason}"
