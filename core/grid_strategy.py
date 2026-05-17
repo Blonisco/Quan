@@ -322,18 +322,7 @@ class GridStrategy:
         risk.update_drawdown()
 
         # 读取历史订单计算加权买入均价（趋势止盈用）
-        avg_entry = db.get_net_btc_position()
-        # 仅在有持仓时计算均价
-        entry_price = None
-        if avg_entry > 0:
-            closed_buys = db.conn.execute(
-                "SELECT price, amount FROM orders WHERE side='BUY' AND status='closed'"
-            ).fetchall()
-            if closed_buys:
-                total_cost = sum(r["price"] * r["amount"] for r in closed_buys)
-                total_btc = sum(r["amount"] for r in closed_buys)
-                if total_btc > 0:
-                    entry_price = total_cost / total_btc
+        entry_price = db.get_weighted_avg_entry_price()
 
         # 2. K线分析 → EMA / ATR
         atr_val = None
@@ -390,11 +379,11 @@ class GridStrategy:
                 logger.debug(f"已有卖出挂单 @ {sell_target}，跳过")
 
         # 8. 状态日志（每小时由 main.py 统一输出，此处仅 debug）
+        _ema_f = f"EMA_f={ema_fast:.2f}" if ema_fast else "EMA_f=N/A"
+        _ema_s = f"EMA_s={ema_slow:.2f}" if ema_slow else "EMA_s=N/A"
+        _atr = f"ATR={atr_val:.1f}" if atr_val else "ATR=N/A"
         logger.debug(
-            f"[{self.mode}] price={current_price} "
-            f"EMA_f={ema_fast:.2f}" if ema_fast else f"EMA_f=N/A"
-            f" EMA_s={ema_slow:.2f}" if ema_slow else f"EMA_s=N/A"
-            f" ATR={atr_val:.1f}" if atr_val else f"ATR=N/A"
+            f"[{self.mode}] price={current_price} {_ema_f} {_ema_s} {_atr}"
         )
 
     # ============================================

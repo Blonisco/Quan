@@ -4,6 +4,7 @@ Telegram 通知模块
 支持 /status /report 等交互命令
 """
 
+import html
 import requests
 from datetime import datetime
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
@@ -226,7 +227,7 @@ class Notifier:
         text = (
             f"<b>🛑 量化机器人已停止</b>\n"
             f"━━━━━━━━━━━━━━━\n"
-            f"原因: {reason}\n"
+            f"原因: {html.escape(reason)}\n"
             f"停止时间: {self._now()}\n"
             f"━━━━━━━━━━━━━━━"
         )
@@ -237,8 +238,8 @@ class Notifier:
         text = (
             f"<b>⚠️ 错误告警</b>\n"
             f"━━━━━━━━━━━━━━━\n"
-            f"位置: {location}\n"
-            f"错误: {error_msg}\n"
+            f"位置: {html.escape(location)}\n"
+            f"错误: {html.escape(error_msg)}\n"
             f"时间: {self._now()}\n"
             f"━━━━━━━━━━━━━━━"
         )

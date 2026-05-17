@@ -223,6 +223,7 @@ def fetch_my_trades(since_ms: int | None = None):
     return exchange.fetch_my_trades(SYMBOL, since=since_ms, params=params)
 
 
+@_retry
 def get_min_order_amount() -> float:
     """
     获取交易所对该交易对的最小下单量
@@ -234,6 +235,7 @@ def get_min_order_amount() -> float:
     return market["limits"]["amount"]["min"]
 
 
+@_retry
 def get_min_notional() -> float:
     """
     获取交易所对该交易对的最小名义价值（minNotional）

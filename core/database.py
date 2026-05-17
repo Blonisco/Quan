@@ -19,6 +19,8 @@ class Database:
 
         self.conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA foreign_keys = ON")
+        self.conn.execute("PRAGMA journal_mode = WAL")
         self._create_tables()
 
     def _create_tables(self):
@@ -98,7 +100,7 @@ class Database:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.conn.execute(
             """
-            INSERT OR REPLACE INTO orders (order_id, side, price, amount, status, created_at, updated_at)
+            INSERT OR IGNORE INTO orders (order_id, side, price, amount, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (order_id, side, price, amount, status, now, now),
@@ -237,6 +239,19 @@ class Database:
         """读取所有状态"""
         rows = self.conn.execute("SELECT key, value FROM bot_state").fetchall()
         return {r["key"]: json.loads(r["value"]) for r in rows}
+
+    def get_weighted_avg_entry_price(self) -> float | None:
+        """计算已成交买单的加权均价，用于趋势止盈"""
+        rows = self.conn.execute(
+            "SELECT price, amount FROM orders WHERE side='BUY' AND status='closed'"
+        ).fetchall()
+        if not rows:
+            return None
+        total_cost = sum(r["price"] * r["amount"] for r in rows)
+        total_btc = sum(r["amount"] for r in rows)
+        if total_btc <= 0:
+            return None
+        return total_cost / total_btc
 
     def get_net_btc_position(self) -> float:
         """计算策略的净 BTC 持仓（已成交买单 - 已成交卖单）"""

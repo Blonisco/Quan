@@ -24,6 +24,7 @@ class RiskManager:
 
     def __init__(self):
         self._last_price = None
+        self._prev_price = None  # 上一 tick 价格，用于跨 tick 波动比较
         self._peak_value = None  # 账户峰值用于回撤
         self._consecutive_same_dir = 0
         self._last_direction = None
@@ -144,10 +145,17 @@ class RiskManager:
     # ============================================
 
     def update_drawdown(self):
-        """更新回撤状态（每轮 tick 调用）"""
+        """更新回撤状态和价格快照（每轮 tick 调用一次）"""
         capital = self._get_total_capital()
         if self._peak_value is None or capital > self._peak_value:
             self._peak_value = capital
+        try:
+            ticker = fetch_ticker()
+            if self._last_price is not None:
+                self._prev_price = self._last_price
+            self._last_price = ticker["last"]
+        except Exception:
+            pass
 
     def check_drawdown(self) -> tuple[bool, str]:
         """检查回撤是否超过限制"""
@@ -215,15 +223,13 @@ class RiskManager:
     # ============================================
 
     def check_price_surge(self) -> tuple[bool, str]:
-        """检测价格是否异常波动"""
+        """检测价格是否异常波动（比较当前价与上一 tick 价格）"""
         try:
             ticker = fetch_ticker()
             current_price = ticker["last"]
-            if self._last_price is None:
-                self._last_price = current_price
+            if self._prev_price is None:
                 return True, "首次运行，无历史价格"
-            change_pct = abs((current_price - self._last_price) / self._last_price * 100)
-            self._last_price = current_price
+            change_pct = abs((current_price - self._prev_price) / self._prev_price * 100)
             if change_pct > PRICE_SURGE_THRESHOLD:
                 return False, (
                     f"价格异常波动: {change_pct:.2f}% > {PRICE_SURGE_THRESHOLD}%"
