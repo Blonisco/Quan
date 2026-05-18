@@ -55,6 +55,24 @@ class GridStrategy:
         self._grid_step: float = 0.0
         self._last_indicators_update = 0.0
         self._init_static_grid()
+        self._reconcile_on_startup()
+
+    def _reconcile_on_startup(self):
+        """启动时对账：DB 中标记为 open 但 Binance 已不存在的订单，标记为 closed"""
+        local_open = db.get_open_orders()
+        if not local_open:
+            return
+        try:
+            exchange_ids = {o["id"] for o in fetch_open_orders()}
+            fixed = 0
+            for loc in local_open:
+                if loc["order_id"] not in exchange_ids:
+                    db.update_order_status(loc["order_id"], "closed")
+                    fixed += 1
+            if fixed > 0:
+                logger.info(f"启动对账: {fixed} 条本地挂单已不在交易所，标记为已成交")
+        except Exception as e:
+            logger.warning(f"启动对账失败: {e}")
 
     # ============================================
     # 静态网格计算（主方案）
