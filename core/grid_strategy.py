@@ -203,27 +203,25 @@ class GridStrategy:
         sell_count = 0
 
         # ---------- 补买单 ----------
+        buy_rejections: list[str] = []
         for bl in self.buy_lines:
             if total_open >= MAX_OPEN_ORDERS:
                 break
             if bl in existing_buys:
-                continue  # 已挂
-
-            # 风控：持仓检查
-            if net_btc >= MAX_POSITION_BTC:
-                logger.debug(f"持仓已达上限 {net_btc:.6f} >= {MAX_POSITION_BTC}，不再补买")
-                break
-
-            # 风控：余额
-            amount = self._calc_order_amount(bl)
-            if usdt_balance < bl * amount * 1.001:
-                logger.debug(f"USDT 余额不足下单 {bl}，跳过")
                 continue
 
-            # 风控：综合检查
+            if net_btc >= MAX_POSITION_BTC:
+                buy_rejections.append(f"{bl}(持仓上限)")
+                break
+
+            amount = self._calc_order_amount(bl)
+            if usdt_balance < bl * amount * 1.001:
+                buy_rejections.append(f"{bl}(余额不足)")
+                continue
+
             allowed, reason = risk.can_buy(bl, amount)
             if not allowed:
-                logger.debug(f"补买拒绝 [{bl}]: {reason}")
+                buy_rejections.append(f"{bl}({reason})")
                 continue
 
             try:
@@ -238,18 +236,22 @@ class GridStrategy:
                                 f"ID: {order['id']}")
             except Exception as e:
                 logger.error(f"挂买单失败 [{bl}]: {e}")
+                buy_rejections.append(f"{bl}(API错误: {e})")
+
+        if buy_rejections and buy_count == 0:
+            logger.warning(f"所有买单被拒 ({len(buy_rejections)}条): {', '.join(buy_rejections)}")
 
         # ---------- 补卖单 ----------
         if net_btc <= 0:
             return  # 无持仓不挂卖单
 
+        sell_rejections: list[str] = []
         for sl in self.sell_lines:
             if total_open >= MAX_OPEN_ORDERS:
                 break
             if sl in existing_sells:
                 continue
 
-            # 控制卖出量：卖出量不超过策略净持仓
             already_selling = 0.0
             for o in fetch_open_orders():
                 if o["side"].lower() == "sell":
@@ -260,12 +262,12 @@ class GridStrategy:
             amount = min(amount, available_to_sell * 0.99)
 
             if amount < get_min_order_amount():
-                logger.debug(f"卖出量过小 [{sl}]: {amount:.6f}，跳过")
+                sell_rejections.append(f"{sl}(数量过小)")
                 continue
 
             allowed, reason = risk.can_sell(sl, amount)
             if not allowed:
-                logger.debug(f"补卖拒绝 [{sl}]: {reason}")
+                sell_rejections.append(f"{sl}({reason})")
                 continue
 
             try:
@@ -280,6 +282,10 @@ class GridStrategy:
                                 f"ID: {order['id']}")
             except Exception as e:
                 logger.error(f"挂卖单失败 [{sl}]: {e}")
+                sell_rejections.append(f"{sl}(API错误: {e})")
+
+        if sell_rejections and sell_count == 0:
+            logger.warning(f"所有卖单被拒 ({len(sell_rejections)}条): {', '.join(sell_rejections)}")
 
         if buy_count > 0 or sell_count > 0:
             logger.info(f"网格补充: +{buy_count} 买 +{sell_count} 卖, "
