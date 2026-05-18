@@ -260,12 +260,7 @@ class RiskManager:
         if not ok:
             return False, f"持仓限制 → {reason}"
 
-        # 3. 单笔仓位
-        ok, reason = self.check_position_per_trade(price, amount_btc)
-        if not ok:
-            return False, f"单笔限制 → {reason}"
-
-        # 4. 总敞口
+        # 3. 总敞口
         ok, reason = self.check_total_exposure()
         if not ok:
             return False, f"敞口限制 → {reason}"
