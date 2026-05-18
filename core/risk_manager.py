@@ -281,12 +281,7 @@ class RiskManager:
         if not ok:
             return False, f"现金储备 → {reason}"
 
-        # 7. 回撤
-        ok, reason = self.check_drawdown()
-        if not ok:
-            return False, f"回撤熔断 → {reason}"
-
-        # 8. 连续同向
+        # 7. 连续同向
         ok, reason = self.check_consecutive_same_dir()
         if not ok:
             return False, f"连续同向 → {reason}"
